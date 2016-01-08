@@ -16,14 +16,15 @@
 
 package org.springframework.cloud.consul.discovery;
 
+import com.ecwid.consul.v1.ConsulClient;
+import com.ecwid.consul.v1.agent.model.NewService;
 import lombok.extern.slf4j.Slf4j;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cloud.client.discovery.AbstractDiscoveryLifecycle;
 import org.springframework.cloud.consul.ConsulProperties;
 
-import com.ecwid.consul.v1.ConsulClient;
-import com.ecwid.consul.v1.agent.model.NewService;
+import java.net.Inet4Address;
+import java.net.UnknownHostException;
 
 /**
  * @author Spencer Gibb
@@ -31,7 +32,36 @@ import com.ecwid.consul.v1.agent.model.NewService;
 @Slf4j
 public class ConsulLifecycle extends AbstractDiscoveryLifecycle {
 
-	@Autowired
+    class MyService extends NewService {
+        @com.google.gson.annotations.SerializedName("Address")
+        private String address;
+
+        public String getAddress() {
+            return address;
+        }
+
+        public void setAddress(String address) {
+            this.address = address;
+        }
+
+        @Override
+        public String toString() {
+            return "NewService{" +
+                    "id='" + getId() + '\'' +
+                    ", name='" + getName() + '\'' +
+                    ", tags=" + getTags() +
+                    ", address=" + getAddress() +
+                    ", port=" + getPort() +
+                    ", check=" + getCheck() +
+                    '}';
+        }
+    }
+
+    class MyCheck extends NewService.Check {
+
+    }
+
+    @Autowired
 	private ConsulClient client;
 
 	@Autowired
@@ -45,8 +75,21 @@ public class ConsulLifecycle extends AbstractDiscoveryLifecycle {
 
 	@Override
 	protected void register() {
-		NewService service = new NewService();
-		String appName = getAppName();
+		MyService service = new MyService();
+
+        String address = getEnvironment().getProperty("consul.serviceOverride.address", "");
+
+        // If the value is set to a known value "localhost" - resolve it to the local IP
+        if (address == "localhost") {
+            try {
+                address = Inet4Address.getLocalHost().getHostAddress();
+            } catch (UnknownHostException e) {
+                e.printStackTrace();
+            }
+        }
+        service.setAddress(address);
+
+        String appName = getAppName();
 		// TODO: move id to properties with context ID as default
 		service.setId(getContext().getId());
 		service.setName(appName);
@@ -62,7 +105,7 @@ public class ConsulLifecycle extends AbstractDiscoveryLifecycle {
 
 	@Override
 	protected void registerManagement() {
-		NewService management = new NewService();
+		MyService management = new MyService();
 		management.setId(getManagementServiceId());
 		management.setName(getManagementServiceName());
 		management.setPort(getManagementPort());
@@ -71,9 +114,22 @@ public class ConsulLifecycle extends AbstractDiscoveryLifecycle {
 		register(management);
 	}
 
-	protected void register(NewService service) {
+	protected void register(MyService service) {
 		log.info("Registering service with consul: {}", service.toString());
 		client.agentServiceRegister(service);
+//        CatalogRegistration catalogRegistration = new CatalogRegistration();
+//        catalogRegistration.setAddress(service.getAddress());
+//        catalogRegistration.setDatacenter("dev");
+//        catalogRegistration.setNode("devhost");
+//
+//        CatalogRegistration.Service service1 = new CatalogRegistration.Service();
+//        service1.setId(service.getId());
+//        service1.setPort(service.getPort());
+//        service1.setService(service.getName());
+//        service1.setTags(service.getTags());
+//        catalogRegistration.setService(service1);
+
+//        client.catalogRegister(catalogRegistration);
 		ttlScheduler.add(service);
 	}
 

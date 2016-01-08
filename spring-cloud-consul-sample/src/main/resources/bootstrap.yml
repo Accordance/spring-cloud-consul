@@ -1,3 +1,7 @@
 spring:
   application:
     name: testConsulApp
+
+consul:
+  serviceOverride:
+    address: localhost
